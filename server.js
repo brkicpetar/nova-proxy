@@ -1,7 +1,4 @@
-// ── Proxy Service 2: Nova S + HirTV ──────────────────────────────────────
-// Deploy this as a NEW Render service (e.g. atv-proxy-2)
-// Both streams are standard HLS — no token extraction needed.
-
+// ── Proxy Service: N1, Nova S ──────────────────────────────────────
 const http = require("http");
 const https = require("https");
 const url = require("url");
@@ -11,6 +8,8 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, OPTIONS, HEAD",
   "Access-Control-Allow-Headers": "*",
 };
+const NOVAS_URL = "https://best-str.umn.cdn.united.cloud/stream?stream=hp7000&sp=novas&channel=novashd&u=novas&p=n0v43!23t001&player=m3u8";
+const N1_URL = "https://best-str.umn.cdn.united.cloud/stream?stream=sp1400&sp=n1info&channel=n1srp&u=n1info&p=n1Sh4redSecre7iNf0&player=m3u8"
 
 function fetch(targetUrl, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
@@ -68,9 +67,6 @@ function rewriteM3u8(content, baseUrl, proxyBase) {
   }).join("\n");
 }
 
-const NOVAS_URL = "https://best-str.umn.cdn.united.cloud/stream?stream=hp7000&sp=novas&channel=novashd&u=novas&p=n0v43!23t001&player=m3u8";
-const HIRTV_URL = "https://video3.videa.hu/static/live/8.2966061.2530409.1.5.590.590/index.m3u8";
-
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") { res.writeHead(204, CORS_HEADERS); res.end(); return; }
 
@@ -84,8 +80,8 @@ const server = http.createServer(async (req, res) => {
   if (path === "/novas") {
     try {
       const { body, headers } = await fetch(NOVAS_URL, {
-        "Referer": "https://novas.rs/",
-        "Origin": "https://novas.rs",
+        "Referer": "https://nova.rs/",
+        "Origin": "https://nova.rs",
       });
       const proto = req.headers["x-forwarded-proto"] || "https";
       const proxyBase = `${proto}://${req.headers.host}`;
@@ -99,44 +95,43 @@ const server = http.createServer(async (req, res) => {
     }
     return;
   }
-
   // /novasdebug — raw NovaS m3u8 for debugging
   if (path === "/novasdebug") {
     try {
-      const { body, status } = await fetch(NOVAS_URL, { "Referer": "https://novas.rs/" });
+      const { body, status } = await fetch(NOVAS_URL, { "Referer": "https://nova.rs/" });
       res.writeHead(200, { ...CORS_HEADERS, "Content-Type": "text/plain" });
       res.end(`HTTP ${status}\n\n${body}`);
     } catch (e) { res.writeHead(502, CORS_HEADERS); res.end(e.message); }
     return;
   }
-
-  // /hirtv — HirTV HLS (proxied so all segments go through Render too)
-  if (path === "/hirtv") {
+  // /n1 — N1 HLS (geo-blocked outside EU)
+  if (path === "/n1") {
     try {
-      const { body, headers } = await fetch(HIRTV_URL);
+      const { body, headers } = await fetch(N1_URL, {
+        "Referer": "https://n1info.rs/",
+        "Origin": "https://n1info.rs",
+      });
       const proto = req.headers["x-forwarded-proto"] || "https";
       const proxyBase = `${proto}://${req.headers.host}`;
-      const rewritten = rewriteM3u8(body, HIRTV_URL, proxyBase);
+      const rewritten = rewriteM3u8(body, N1_URL, proxyBase);
       res.writeHead(200, { ...CORS_HEADERS, "Content-Type": headers["content-type"] || "application/vnd.apple.mpegurl", "Cache-Control": "no-cache" });
       res.end(rewritten);
     } catch (e) {
-      console.error("HirTV error:", e.message);
+      console.error("N1 error:", e.message);
       res.writeHead(502, CORS_HEADERS);
-      res.end("HirTV error: " + e.message);
+      res.end("N1 error: " + e.message);
     }
     return;
   }
-
-  // /hirtvdebug
-  if (path === "/hirtvdebug") {
+  // /n1debug — raw N1 m3u8 for debugging
+  if (path === "/n1debug") {
     try {
-      const { body, status } = await fetch(HIRTV_URL);
+      const { body, status } = await fetch(N1_URL, { "Referer": "https://n1info.rs/" });
       res.writeHead(200, { ...CORS_HEADERS, "Content-Type": "text/plain" });
       res.end(`HTTP ${status}\n\n${body}`);
     } catch (e) { res.writeHead(502, CORS_HEADERS); res.end(e.message); }
     return;
   }
-
   // /proxy?url= — generic m3u8 proxy
   if (path === "/proxy") {
     const targetUrl = query.url;
@@ -176,4 +171,4 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`Proxy service 2 (Nova S + HirTV) on port ${PORT}`));
+server.listen(PORT, () => console.log(`Proxy service (N1, Nova S) on port ${PORT}`));
